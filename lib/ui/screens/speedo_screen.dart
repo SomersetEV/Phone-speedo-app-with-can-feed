@@ -94,7 +94,7 @@ class _BleBar extends StatelessWidget {
                 color: const Color(0xFF1A1A1A),
                 onSelected: (value) async {
                   if (value == 'set_odometer') {
-                    _showOdometerEditor(ctx, ctx.read<GpsService>());
+                    await _showOdometerEditor(ctx, ctx.read<GpsService>());
                   } else if (value == 'can_record') {
                     final rec = ctx.read<CanRecordingService>();
                     if (rec.isRecording) {
@@ -155,6 +155,8 @@ class _BleBar extends StatelessWidget {
 
 Future<void> _showOdometerEditor(
     BuildContext context, GpsService gps) async {
+  // Capture repo before any async gap — context.read is unsafe after await.
+  final repo = context.read<RecordingRepository>();
   final ctrl =
       TextEditingController(text: gps.totalOdometer.toStringAsFixed(1));
   final result = await showDialog<String>(
@@ -192,12 +194,10 @@ Future<void> _showOdometerEditor(
       ],
     ),
   );
-  ctrl.dispose();
   if (result == null) return;
   final miles = double.tryParse(result);
   if (miles == null || miles < 0) return;
-  if (!context.mounted) return;
-  await context.read<RecordingRepository>().setOdometer(miles);
+  await repo.setOdometer(miles);
   await gps.refreshOdometer();
 }
 

@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:sensors_plus/sensors_plus.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../data/recording_repository.dart';
 
@@ -24,6 +25,7 @@ class GpsService extends ChangeNotifier {
   bool isRecording = false;
   double? lastAccuracyM;
 
+  bool _disposed = false;
   int? _currentSessionId;
   double _maxSpeedThisSession = 0.0;
   Position? _lastPosition;
@@ -48,9 +50,9 @@ class GpsService extends ChangeNotifier {
 
   Future<void> _init() async {
     totalOdometer = await _repository.getTotalOdometer();
+    if (_disposed) return;
     notifyListeners();
 
-    // Accelerometer — userAccelerometer has gravity removed, so stationary ≈ (0,0,0).
     try {
       _accelSub = userAccelerometerEventStream(
         samplingPeriod: const Duration(milliseconds: 50),
@@ -60,14 +62,14 @@ class GpsService extends ChangeNotifier {
         _accelBuffer.add(mag);
         if (_accelBuffer.length > _kAccelWindow) _accelBuffer.removeAt(0);
       });
-    } catch (_) {
-      // Sensor unavailable — GPS-only mode with deadband filter only.
-    }
+    } catch (_) {}
 
     var permission = await Geolocator.checkPermission();
+    if (_disposed) return;
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
     }
+    if (_disposed) return;
     if (permission == LocationPermission.denied ||
         permission == LocationPermission.deniedForever) {
       gpsStatus = GpsStatus.noPermission;
@@ -78,6 +80,7 @@ class GpsService extends ChangeNotifier {
     final settings = _makeLocationSettings();
     _positionSub = Geolocator.getPositionStream(locationSettings: settings)
         .listen(_onPosition, onError: (_) {
+      if (_disposed) return;
       gpsStatus = GpsStatus.lost;
       notifyListeners();
     });
@@ -129,13 +132,22 @@ class GpsService extends ChangeNotifier {
 
   Future<void> startRecording() async {
     if (isRecording) return;
+    // Flip flag synchronously to block any concurrent call.
+    isRecording = true;
     tripOdometer = 0.0;
     _maxSpeedThisSession = 0.0;
     _lastPosition = null;
 
-    final sessionId = await _repository.startSession();
-    _currentSessionId = sessionId;
-    isRecording = true;
+    try {
+      final sessionId = await _repository.startSession();
+      _currentSessionId = sessionId;
+    } catch (_) {
+      isRecording = false;
+      notifyListeners();
+      return;
+    }
+
+    WakelockPlus.enable();
     notifyListeners();
 
     _recordTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
@@ -152,19 +164,20 @@ class GpsService extends ChangeNotifier {
 
   Future<void> stopRecording() async {
     if (!isRecording || _currentSessionId == null) return;
-    _recordTimer?.cancel();
-    _recordTimer = null;
-
-    await _repository.stopSession(
-      _currentSessionId!,
-      tripOdometer,
-      _maxSpeedThisSession,
-    );
-    await _repository.addToOdometer(tripOdometer);
-    totalOdometer = await _repository.getTotalOdometer();
-
+    // Flip flags synchronously to block any concurrent call.
+    final sessionId = _currentSessionId!;
+    final trip = tripOdometer;
+    final maxSpeed = _maxSpeedThisSession;
     isRecording = false;
     _currentSessionId = null;
+    _recordTimer?.cancel();
+    _recordTimer = null;
+    WakelockPlus.disable();
+    notifyListeners();
+
+    await _repository.stopSession(sessionId, trip, maxSpeed);
+    await _repository.addToOdometer(trip);
+    totalOdometer = await _repository.getTotalOdometer();
     notifyListeners();
   }
 
@@ -173,7 +186,7 @@ class GpsService extends ChangeNotifier {
       return AndroidSettings(
         accuracy: LocationAccuracy.high,
         distanceFilter: 0,
-        intervalDuration: const Duration(seconds: 1),
+        intervalDuration: const Duration(milliseconds: 200),
       );
     }
     return const LocationSettings(
@@ -200,6 +213,7 @@ class GpsService extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _positionSub?.cancel();
     _accelSub?.cancel();
     _recordTimer?.cancel();

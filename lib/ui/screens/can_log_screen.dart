@@ -18,29 +18,32 @@ class CanLogScreen extends StatefulWidget {
 class _CanLogScreenState extends State<CanLogScreen> {
   List<File> _files = [];
   bool _loading = true;
+  // Stored reference so dispose() doesn't need context.
+  late final CanRecordingService _rec;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<CanRecordingService>().addListener(_onServiceChanged);
-      _load();
-    });
+    _rec = context.read<CanRecordingService>();
+    _rec.addListener(_onServiceChanged);
+    _load();
   }
 
   @override
   void dispose() {
-    context.read<CanRecordingService>().removeListener(_onServiceChanged);
+    _rec.removeListener(_onServiceChanged);
     super.dispose();
   }
 
   void _onServiceChanged() {
-    if (!context.read<CanRecordingService>().isRecording) _load();
+    if (!mounted) return;
+    if (!_rec.isRecording) _load();
   }
 
   Future<void> _load() async {
+    if (!mounted) return;
     setState(() => _loading = true);
-    final files = await context.read<CanRecordingService>().listSessions();
+    final files = await _rec.listSessions();
     if (mounted) setState(() { _files = files; _loading = false; });
   }
 
@@ -77,10 +80,16 @@ class _CanLogScreenState extends State<CanLogScreen> {
   }
 
   String _fileSize(File file) {
-    final bytes = file.lengthSync();
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    try {
+      final bytes = file.lengthSync();
+      if (bytes < 1024) return '$bytes B';
+      if (bytes < 1024 * 1024) {
+        return '${(bytes / 1024).toStringAsFixed(1)} KB';
+      }
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    } catch (_) {
+      return '—';
+    }
   }
 
   @override
@@ -132,10 +141,10 @@ class _CanLogScreenState extends State<CanLogScreen> {
                           ),
                           confirmDismiss: (_) => _confirmDelete(context),
                           onDismissed: (_) async {
-                            await context
-                                .read<CanRecordingService>()
-                                .deleteSession(file);
-                            setState(() => _files.removeAt(i));
+                            await _rec.deleteSession(file);
+                            if (mounted) {
+                              setState(() => _files.removeAt(i));
+                            }
                           },
                           child: _LogCard(
                             date: _formatDate(file),
@@ -144,8 +153,7 @@ class _CanLogScreenState extends State<CanLogScreen> {
                               await SharePlus.instance.share(
                                 ShareParams(
                                   files: [XFile(file.path)],
-                                  text:
-                                      'CAN log ${_formatDate(file)}',
+                                  text: 'CAN log ${_formatDate(file)}',
                                 ),
                               );
                             },

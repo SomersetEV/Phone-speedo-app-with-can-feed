@@ -36,9 +36,16 @@ class CanRecordingService extends ChangeNotifier {
     isRecording = true;
     notifyListeners();
     _sub = _ble.rawDataStream.listen((line) {
-      _sink?.writeln(line);
+      try {
+        _sink?.writeln(line);
+      } catch (_) {
+        // Disk full or write error — stop recording gracefully.
+        stopRecording();
+        return;
+      }
       frameCount++;
-      notifyListeners();
+      // Notify every 25 frames to avoid rebuilding UI on every CAN message.
+      if (frameCount % 25 == 0) notifyListeners();
     });
   }
 

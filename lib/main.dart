@@ -16,20 +16,38 @@ void main() {
   runApp(const CarSpeedoApp());
 }
 
-class CarSpeedoApp extends StatelessWidget {
+class CarSpeedoApp extends StatefulWidget {
   const CarSpeedoApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final db = AppDatabase();
-    final repository = RecordingRepository(db);
+  State<CarSpeedoApp> createState() => _CarSpeedoAppState();
+}
 
+class _CarSpeedoAppState extends State<CarSpeedoApp> {
+  late final AppDatabase _db;
+  late final RecordingRepository _repository;
+
+  @override
+  void initState() {
+    super.initState();
+    _db = AppDatabase();
+    _repository = RecordingRepository(_db);
+  }
+
+  @override
+  void dispose() {
+    _db.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        Provider<AppDatabase>.value(value: db),
-        Provider<RecordingRepository>.value(value: repository),
+        Provider<AppDatabase>.value(value: _db),
+        Provider<RecordingRepository>.value(value: _repository),
         ChangeNotifierProvider(create: (_) => BleService()),
-        ChangeNotifierProvider(create: (_) => GpsService(repository)),
+        ChangeNotifierProvider(create: (_) => GpsService(_repository)),
         ChangeNotifierProvider(
           create: (ctx) => CanService(ctx.read<BleService>()),
         ),

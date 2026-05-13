@@ -79,6 +79,8 @@ class BleService extends ChangeNotifier {
     try {
       await device.connect(timeout: const Duration(seconds: 10));
     } catch (e) {
+      _stateSub?.cancel();
+      _stateSub = null;
       lastError = 'Connection failed: $e';
       _setState(BleConnectionState.disconnected);
       notifyListeners();
@@ -157,7 +159,10 @@ class BleService extends ChangeNotifier {
 
   void _onNotification(List<int> value) {
     final text = utf8.decode(value, allowMalformed: true);
-    _rawDataController.add(text);
+    for (final line in text.split('\n')) {
+      final trimmed = line.trim();
+      if (trimmed.isNotEmpty) _rawDataController.add(trimmed);
+    }
   }
 
   void _setState(BleConnectionState state) {
