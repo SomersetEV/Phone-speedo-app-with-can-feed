@@ -7,6 +7,7 @@ import 'services/ble_service.dart';
 import 'services/can_recording_service.dart';
 import 'services/can_service.dart';
 import 'services/gps_service.dart';
+import 'services/speed_limit_service.dart';
 import 'ui/screens/can_log_screen.dart';
 import 'ui/screens/history_screen.dart';
 import 'ui/screens/speedo_screen.dart';
@@ -48,6 +49,9 @@ class _CarSpeedoAppState extends State<CarSpeedoApp> {
         Provider<RecordingRepository>.value(value: _repository),
         ChangeNotifierProvider(create: (_) => BleService()),
         ChangeNotifierProvider(create: (_) => GpsService(_repository)),
+        ChangeNotifierProvider(
+          create: (ctx) => SpeedLimitService(ctx.read<GpsService>()),
+        ),
         ChangeNotifierProvider(
           create: (ctx) => CanService(ctx.read<BleService>()),
         ),

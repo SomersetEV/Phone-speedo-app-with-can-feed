@@ -6,6 +6,7 @@ import '../../services/ble_service.dart';
 import '../../services/can_recording_service.dart';
 import '../../services/can_service.dart';
 import '../../services/gps_service.dart';
+import '../../services/speed_limit_service.dart';
 
 class SpeedoScreen extends StatelessWidget {
   const SpeedoScreen({super.key});
@@ -213,22 +214,32 @@ class _SpeedoBody extends StatelessWidget {
           children: [
             const _CanDataPanel(),
             const SizedBox(height: 12),
-            // Speed readout
+            // Speed readout with limit sign to the left
             SizedBox(
               height: 260,
-              width: double.infinity,
-              child: FittedBox(
-                fit: BoxFit.contain,
-                child: Text(
-                  gps.gpsStatus == GpsStatus.active
-                      ? gps.speedMph.toStringAsFixed(0)
-                      : '--',
-                  style: const TextStyle(
-                    fontSize: 300,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(
+                    width: 64,
+                    child: Center(child: _SpeedLimitSign()),
                   ),
-                ),
+                  Expanded(
+                    child: FittedBox(
+                      fit: BoxFit.contain,
+                      child: Text(
+                        gps.gpsStatus == GpsStatus.active
+                            ? gps.speedMph.toStringAsFixed(0)
+                            : '--',
+                        style: const TextStyle(
+                          fontSize: 300,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             const Text(
@@ -558,6 +569,43 @@ class _CanCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ── Speed limit sign ─────────────────────────────────────────────────────────
+
+class _SpeedLimitSign extends StatelessWidget {
+  const _SpeedLimitSign();
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<SpeedLimitService>(
+      builder: (_, svc, __) {
+        final text = svc.speedLimitMph != null
+            ? svc.speedLimitMph!.round().toString()
+            : '--';
+        return Container(
+          width: 50,
+          height: 50,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white,
+            border: Border.all(color: Colors.red, width: 4),
+          ),
+          child: Center(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: Colors.black,
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+                height: 1.0,
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

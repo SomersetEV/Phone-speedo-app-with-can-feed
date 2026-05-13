@@ -33,6 +33,7 @@ dependencies:
   sensors_plus: ^4.0.0
   share_plus: ^13.1.0
   wakelock_plus: ^1.6.0
+  http: ^1.2.0
 
 dev_dependencies:
   flutter_test:

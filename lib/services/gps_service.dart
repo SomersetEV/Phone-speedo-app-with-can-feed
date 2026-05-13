@@ -25,9 +25,12 @@ class GpsService extends ChangeNotifier {
   bool isRecording = false;
   double? lastAccuracyM;
 
+  Position? get lastPosition => _lastPosition;
+
   bool _disposed = false;
   int? _currentSessionId;
   double _maxSpeedThisSession = 0.0;
+  double _baseOdometer = 0.0;
   Position? _lastPosition;
   StreamSubscription<Position>? _positionSub;
   StreamSubscription<UserAccelerometerEvent>? _accelSub;
@@ -114,6 +117,7 @@ class GpsService extends ChangeNotifier {
         position.longitude,
       );
       tripOdometer += distM / 1609.344;
+      totalOdometer = _baseOdometer + tripOdometer;
       if (speedMph > _maxSpeedThisSession) _maxSpeedThisSession = speedMph;
     }
     _lastPosition = position;
@@ -136,6 +140,7 @@ class GpsService extends ChangeNotifier {
     isRecording = true;
     tripOdometer = 0.0;
     _maxSpeedThisSession = 0.0;
+    _baseOdometer = totalOdometer;
     _lastPosition = null;
 
     try {
