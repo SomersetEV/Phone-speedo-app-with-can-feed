@@ -55,8 +55,10 @@ class SpeedLimitService extends ChangeNotifier {
     _lastLng = lng;
 
     try {
+      final latStr = lat.toStringAsFixed(6);
+      final lngStr = lng.toStringAsFixed(6);
       final uri = Uri.parse(
-        'https://api.tomtom.com/search/2/reverseGeocode/$lat,$lng.json'
+        'https://api.tomtom.com/search/2/reverseGeocode/$latStr,$lngStr.json'
         '?key=$_kTomTomApiKey&returnSpeedLimit=true&radius=50',
       );
       final resp = await http.get(uri).timeout(const Duration(seconds: 5));
@@ -65,13 +67,19 @@ class SpeedLimitService extends ChangeNotifier {
         final addresses = data['addresses'] as List?;
         if (addresses != null && addresses.isNotEmpty) {
           final addr = addresses[0] as Map<String, dynamic>;
-          // TomTom returns speedLimitValue + speedLimitUnit at the address level
-          final value = (addr['speedLimitValue'] as num?)?.toDouble();
-          final unit = addr['speedLimitUnit'] as String? ?? 'KMH';
-          if (value != null) {
-            speedLimitMph = unit.toUpperCase().contains('KM')
-                ? value * 0.621371
-                : value;
+          // TomTom returns speedLimit as a combined string e.g. "30.00MPH" or "48.00KPH"
+          final address = addr['address'] as Map<String, dynamic>?;
+          final speedLimitStr = address?['speedLimit'] as String?;
+          if (speedLimitStr != null && speedLimitStr.isNotEmpty) {
+            final match = RegExp(r'([\d.]+)(MPH|KPH|KMH)', caseSensitive: false)
+                .firstMatch(speedLimitStr);
+            if (match != null) {
+              final value = double.tryParse(match.group(1)!);
+              final unit = match.group(2)!.toUpperCase();
+              if (value != null) {
+                speedLimitMph = unit == 'MPH' ? value : value * 0.621371;
+              }
+            }
           }
         }
       }
