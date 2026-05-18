@@ -89,7 +89,7 @@ class CanService extends ChangeNotifier {
       case 0x200:
         if (bytes.length >= 3) {
           final raw = (bytes[2] << 16) | (bytes[1] << 8) | bytes[0];
-          ampDraw = ((raw << 40) >> 40).toDouble();
+          ampDraw = ((raw << 40) >> 40) / 1000.0;
           changed = true;
         }
     }

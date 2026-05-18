@@ -39,6 +39,7 @@ class GpsService extends ChangeNotifier {
   double _pendingSpeedMph = 0.0;
   double? _pendingLat;
   double? _pendingLng;
+  int _odometerSaveCounter = 0;
 
   // Rolling buffer of linear-acceleration magnitudes (gravity removed).
   final List<double> _accelBuffer = [];
@@ -163,6 +164,11 @@ class GpsService extends ChangeNotifier {
           _pendingLat,
           _pendingLng,
         );
+        _odometerSaveCounter++;
+        if (_odometerSaveCounter >= 30) {
+          _odometerSaveCounter = 0;
+          await _repository.setOdometer(totalOdometer);
+        }
       }
     });
   }
@@ -180,9 +186,9 @@ class GpsService extends ChangeNotifier {
     WakelockPlus.disable();
     notifyListeners();
 
+    _odometerSaveCounter = 0;
     await _repository.stopSession(sessionId, trip, maxSpeed);
-    await _repository.addToOdometer(trip);
-    totalOdometer = await _repository.getTotalOdometer();
+    await _repository.setOdometer(totalOdometer);
     notifyListeners();
   }
 
